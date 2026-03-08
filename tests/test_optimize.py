@@ -33,6 +33,19 @@ def test_empty_module_raises_before_lm_call(empty_module, trainset, good_metric)
         mock_lm.assert_not_called()
 
 
+def test_non_callable_metric_raises_before_lm_call(simple_module, trainset):
+    with patch("daisy.optimize.dspy.LM") as mock_lm:
+        with pytest.raises(TypeError, match="metric must be callable"):
+            optimize(
+                module=simple_module,
+                trainset=trainset,
+                input_keys=["question"],
+                metric="not_a_function",
+                lm="openai/gpt-4o-mini",
+            )
+        mock_lm.assert_not_called()
+
+
 def test_missing_input_key_raises_before_lm_call(simple_module, good_metric):
     trainset = [{"question": "Q1", "answer": "A1"}, {"answer": "A2"}]  # second example missing "question"
     with patch("daisy.optimize.dspy.LM") as mock_lm:

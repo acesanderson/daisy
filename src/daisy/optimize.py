@@ -52,3 +52,5 @@ def _validate(
         for key in input_keys:
             if key not in ex:
                 raise ValueError(f"input_key '{key}' not found in all trainset examples")
+    if not callable(metric):
+        raise TypeError("metric must be callable")
