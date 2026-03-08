@@ -1,0 +1,48 @@
+from __future__ import annotations
+
+import copy
+import logging
+import math
+import time
+from collections.abc import Callable
+from typing import TYPE_CHECKING
+
+import dspy
+from dspy.evaluate import Evaluate
+from dspy.teleprompt import MIPROv2
+
+from daisy.types import OptimizationResult, PredictorArtifact
+
+if TYPE_CHECKING:
+    pass
+
+logger = logging.getLogger("daisy")
+
+
+def optimize(
+    module: dspy.Module,
+    trainset: list[dict],
+    input_keys: list[str],
+    metric: Callable,
+    lm: str,
+    api_base: str | None = None,
+    api_key: str | None = None,
+    auto: str = "light",
+    num_candidates: int | None = None,
+    num_trials: int | None = None,
+    max_bootstrapped_demos: int | None = None,
+    num_threads: int = 4,
+) -> OptimizationResult:
+    _validate(
+        module, trainset, input_keys, metric, auto,
+        num_candidates, num_trials, max_bootstrapped_demos, num_threads,
+    )
+    raise NotImplementedError("optimize() not yet implemented beyond validation")
+
+
+def _validate(
+    module, trainset, input_keys, metric, auto,
+    num_candidates, num_trials, max_bootstrapped_demos, num_threads,
+):
+    if not trainset:
+        raise ValueError("trainset must not be empty")
