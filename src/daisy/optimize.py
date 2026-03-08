@@ -46,6 +46,8 @@ def _validate(
 ):
     if not trainset:
         raise ValueError("trainset must not be empty")
+    if not list(module.named_predictors()):
+        raise ValueError("module must have at least one named predictor")
     for ex in trainset:
         for key in input_keys:
             if key not in ex:
