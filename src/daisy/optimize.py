@@ -46,3 +46,7 @@ def _validate(
 ):
     if not trainset:
         raise ValueError("trainset must not be empty")
+    for ex in trainset:
+        for key in input_keys:
+            if key not in ex:
+                raise ValueError(f"input_key '{key}' not found in all trainset examples")
