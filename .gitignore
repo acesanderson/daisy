@@ -1,0 +1,15 @@
+# Universal
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.db
+.env
+.DS_Store
+.python-version
+*.log
+*.sqlite3
+.venv
+uv.lock
