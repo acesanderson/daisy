@@ -54,3 +54,8 @@ def _validate(
                 raise ValueError(f"input_key '{key}' not found in all trainset examples")
     if not callable(metric):
         raise TypeError("metric must be callable")
+    test_example = dspy.Example(**trainset[0]).with_inputs(*input_keys)
+    try:
+        test_result = metric(test_example, dspy.Prediction())
+    except Exception as exc:
+        raise TypeError(f"metric raised during test call: {exc}") from exc

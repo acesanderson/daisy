@@ -58,3 +58,19 @@ def test_missing_input_key_raises_before_lm_call(simple_module, good_metric):
                 lm="openai/gpt-4o-mini",
             )
         mock_lm.assert_not_called()
+
+
+def test_metric_that_raises_on_call_raises_type_error(simple_module, trainset):
+    def raising_metric(example, prediction):
+        raise RuntimeError("deliberate error")
+
+    with patch("daisy.optimize.dspy.LM") as mock_lm:
+        with pytest.raises(TypeError, match="metric raised during test call"):
+            optimize(
+                module=simple_module,
+                trainset=trainset,
+                input_keys=["question"],
+                metric=raising_metric,
+                lm="openai/gpt-4o-mini",
+            )
+        mock_lm.assert_not_called()
