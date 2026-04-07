@@ -100,3 +100,101 @@ def test_metric_bad_return_raises_type_error(simple_module, trainset, bad_return
                 lm="openai/gpt-4o-mini",
             )
         mock_lm.assert_not_called()
+
+
+def test_num_threads_less_than_one_raises(simple_module, trainset, good_metric):
+    with patch("daisy.optimize.dspy.LM") as mock_lm:
+        with pytest.raises(ValueError, match="num_threads must be >= 1"):
+            optimize(
+                module=simple_module,
+                trainset=trainset,
+                input_keys=["question"],
+                metric=good_metric,
+                lm="openai/gpt-4o-mini",
+                num_threads=0,
+            )
+        mock_lm.assert_not_called()
+
+
+def test_num_candidates_less_than_one_raises(simple_module, trainset, good_metric):
+    with patch("daisy.optimize.dspy.LM") as mock_lm:
+        with pytest.raises(ValueError, match="num_candidates must be >= 1"):
+            optimize(
+                module=simple_module,
+                trainset=trainset,
+                input_keys=["question"],
+                metric=good_metric,
+                lm="openai/gpt-4o-mini",
+                num_candidates=0,
+            )
+        mock_lm.assert_not_called()
+
+
+def test_num_trials_less_than_one_raises(simple_module, trainset, good_metric):
+    with patch("daisy.optimize.dspy.LM") as mock_lm:
+        with pytest.raises(ValueError, match="num_trials must be >= 1"):
+            optimize(
+                module=simple_module,
+                trainset=trainset,
+                input_keys=["question"],
+                metric=good_metric,
+                lm="openai/gpt-4o-mini",
+                num_trials=0,
+            )
+        mock_lm.assert_not_called()
+
+
+def test_max_bootstrapped_demos_negative_raises(simple_module, trainset, good_metric):
+    with patch("daisy.optimize.dspy.LM") as mock_lm:
+        with pytest.raises(ValueError, match="max_bootstrapped_demos must be >= 0"):
+            optimize(
+                module=simple_module,
+                trainset=trainset,
+                input_keys=["question"],
+                metric=good_metric,
+                lm="openai/gpt-4o-mini",
+                max_bootstrapped_demos=-1,
+            )
+        mock_lm.assert_not_called()
+
+
+def test_max_bootstrapped_demos_zero_is_valid(simple_module, trainset, good_metric, mock_dspy):
+    with pytest.raises(NotImplementedError):
+        optimize(
+            module=simple_module,
+            trainset=trainset,
+            input_keys=["question"],
+            metric=good_metric,
+            lm="openai/gpt-4o-mini",
+            max_bootstrapped_demos=0,
+        )
+
+
+def test_invalid_auto_raises(simple_module, trainset, good_metric):
+    with patch("daisy.optimize.dspy.LM") as mock_lm:
+        with pytest.raises(ValueError, match="auto must be"):
+            optimize(
+                module=simple_module,
+                trainset=trainset,
+                input_keys=["question"],
+                metric=good_metric,
+                lm="openai/gpt-4o-mini",
+                auto="turbo",
+            )
+        mock_lm.assert_not_called()
+
+
+def test_per_predictor_lm_raises(simple_module, trainset, good_metric):
+    from unittest.mock import MagicMock
+    simple_module.generate.lm = MagicMock()
+
+    with patch("daisy.optimize.dspy.LM") as mock_lm:
+        with pytest.raises(ValueError, match="Per-predictor LMs are not supported"):
+            optimize(
+                module=simple_module,
+                trainset=trainset,
+                input_keys=["question"],
+                metric=good_metric,
+                lm="openai/gpt-4o-mini",
+            )
+        mock_lm.assert_not_called()

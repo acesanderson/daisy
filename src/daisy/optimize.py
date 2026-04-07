@@ -67,3 +67,18 @@ def _validate(
         raise TypeError(
             f"metric must return a finite float, got {type(test_result).__name__}: {test_result!r}"
         )
+    if num_threads < 1:
+        raise ValueError(f"num_threads must be >= 1, got {num_threads}")
+    if num_candidates is not None and num_candidates < 1:
+        raise ValueError(f"num_candidates must be >= 1, got {num_candidates}")
+    if num_trials is not None and num_trials < 1:
+        raise ValueError(f"num_trials must be >= 1, got {num_trials}")
+    if max_bootstrapped_demos is not None and max_bootstrapped_demos < 0:
+        raise ValueError(f"max_bootstrapped_demos must be >= 0, got {max_bootstrapped_demos}")
+    if auto not in {"light", "medium", "heavy"}:
+        raise ValueError(f"auto must be 'light', 'medium', or 'heavy', got {auto!r}")
+    for _name, predictor in module.named_predictors():
+        if getattr(predictor, "lm", None) is not None:
+            raise ValueError(
+                "Per-predictor LMs are not supported. Set a single LM via the  parameter."
+            )
