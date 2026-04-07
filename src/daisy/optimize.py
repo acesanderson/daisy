@@ -59,3 +59,11 @@ def _validate(
         test_result = metric(test_example, dspy.Prediction())
     except Exception as exc:
         raise TypeError(f"metric raised during test call: {exc}") from exc
+    if (
+        isinstance(test_result, bool)
+        or not isinstance(test_result, float)
+        or not math.isfinite(test_result)
+    ):
+        raise TypeError(
+            f"metric must return a finite float, got {type(test_result).__name__}: {test_result!r}"
+        )
