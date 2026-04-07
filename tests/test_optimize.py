@@ -198,3 +198,17 @@ def test_per_predictor_lm_raises(simple_module, trainset, good_metric):
                 lm="openai/gpt-4o-mini",
             )
         mock_lm.assert_not_called()
+
+
+def test_caller_module_not_mutated(simple_module, trainset, good_metric, mock_dspy):
+    original_instructions = simple_module.generate.signature.instructions
+
+    optimize(
+        module=simple_module,
+        trainset=trainset,
+        input_keys=["question"],
+        metric=good_metric,
+        lm="openai/gpt-4o-mini",
+    )
+
+    assert simple_module.generate.signature.instructions == original_instructions
