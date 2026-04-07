@@ -159,15 +159,17 @@ def test_max_bootstrapped_demos_negative_raises(simple_module, trainset, good_me
 
 
 def test_max_bootstrapped_demos_zero_is_valid(simple_module, trainset, good_metric, mock_dspy):
-    with pytest.raises(NotImplementedError):
-        optimize(
-            module=simple_module,
-            trainset=trainset,
-            input_keys=["question"],
-            metric=good_metric,
-            lm="openai/gpt-4o-mini",
-            max_bootstrapped_demos=0,
-        )
+    # zero is valid (>= 0); verify it does not raise
+    result = optimize(
+        module=simple_module,
+        trainset=trainset,
+        input_keys=["question"],
+        metric=good_metric,
+        lm="openai/gpt-4o-mini",
+        max_bootstrapped_demos=0,
+    )
+    from daisy.types import OptimizationResult
+    assert isinstance(result, OptimizationResult)
 
 
 def test_invalid_auto_raises(simple_module, trainset, good_metric):
@@ -212,3 +214,166 @@ def test_caller_module_not_mutated(simple_module, trainset, good_metric, mock_ds
     )
 
     assert simple_module.generate.signature.instructions == original_instructions
+
+
+# Task 16 (AC6)
+def test_instructions_are_unmodified_string(simple_module, trainset, good_metric, mock_dspy):
+    mock_dspy["predictor"].signature.instructions = "You are a precise answerer."
+    result = optimize(
+        module=simple_module, trainset=trainset, input_keys=["question"],
+        metric=good_metric, lm="openai/gpt-4o-mini",
+    )
+    assert result.predictors[0].instructions == "You are a precise answerer."
+
+
+# Task 17 (AC7)
+def test_demo_values_cast_to_str(simple_module, trainset, good_metric, mock_dspy):
+    mock_dspy["predictor"].demos = [{"question": "Q?", "scores": [1, 2, 3]}]
+    result = optimize(
+        module=simple_module, trainset=trainset, input_keys=["question"],
+        metric=good_metric, lm="openai/gpt-4o-mini",
+    )
+    demos = result.predictors[0].demos
+    assert len(demos) == 1
+    assert demos[0]["scores"] == "[1, 2, 3]"
+    assert isinstance(demos[0]["scores"], str)
+
+
+# Task 18 (AC5)
+def test_one_artifact_per_predictor_in_order(simple_module, trainset, good_metric, mock_dspy):
+    from unittest.mock import MagicMock
+    mock_pred_a = MagicMock()
+    mock_pred_a.signature.instructions = "Instr A"
+    mock_pred_a.demos = []
+    mock_pred_a.lm = None
+    mock_pred_b = MagicMock()
+    mock_pred_b.signature.instructions = "Instr B"
+    mock_pred_b.demos = []
+    mock_pred_b.lm = None
+    mock_dspy["compiled"].named_predictors.return_value = [
+        ("step_one", mock_pred_a),
+        ("step_two", mock_pred_b),
+    ]
+    result = optimize(
+        module=simple_module, trainset=trainset, input_keys=["question"],
+        metric=good_metric, lm="openai/gpt-4o-mini",
+    )
+    assert len(result.predictors) == 2
+    assert result.predictors[0].name == "step_one"
+    assert result.predictors[0].instructions == "Instr A"
+    assert result.predictors[1].name == "step_two"
+    assert result.predictors[1].instructions == "Instr B"
+
+
+# Task 19 (AC2)
+def test_improved_true_when_optimized_score_exceeds_baseline(simple_module, trainset, good_metric, mock_dspy):
+    mock_dspy["eval_cls"].return_value.side_effect = [0.5, 0.8]
+    result = optimize(
+        module=simple_module, trainset=trainset, input_keys=["question"],
+        metric=good_metric, lm="openai/gpt-4o-mini",
+    )
+    assert result.improved is True
+    assert result.baseline_score == 0.5
+    assert result.optimized_score == 0.8
+
+
+def test_improved_true_when_scores_equal(simple_module, trainset, good_metric, mock_dspy):
+    mock_dspy["eval_cls"].return_value.side_effect = [0.7, 0.7]
+    result = optimize(
+        module=simple_module, trainset=trainset, input_keys=["question"],
+        metric=good_metric, lm="openai/gpt-4o-mini",
+    )
+    assert result.improved is True
+
+
+def test_improved_false_when_optimized_score_below_baseline(simple_module, trainset, good_metric, mock_dspy):
+    mock_dspy["eval_cls"].return_value.side_effect = [0.8, 0.5]
+    result = optimize(
+        module=simple_module, trainset=trainset, input_keys=["question"],
+        metric=good_metric, lm="openai/gpt-4o-mini",
+    )
+    assert result.improved is False
+
+
+# Task 20 (AC3)
+def test_returns_baseline_artifacts_when_no_improvement(simple_module, trainset, good_metric, mock_dspy):
+    mock_dspy["eval_cls"].return_value.side_effect = [0.8, 0.5]
+    result = optimize(
+        module=simple_module, trainset=trainset, input_keys=["question"],
+        metric=good_metric, lm="openai/gpt-4o-mini",
+    )
+    assert result.improved is False
+    assert result.predictors[0].instructions != "Test instructions"
+
+
+# Task 21 (AC4)
+def test_returns_optimized_artifacts_when_improved(simple_module, trainset, good_metric, mock_dspy):
+    mock_dspy["eval_cls"].return_value.side_effect = [0.5, 0.8]
+    mock_dspy["predictor"].signature.instructions = "Optimized by MIPROv2"
+    result = optimize(
+        module=simple_module, trainset=trainset, input_keys=["question"],
+        metric=good_metric, lm="openai/gpt-4o-mini",
+    )
+    assert result.improved is True
+    assert result.predictors[0].instructions == "Optimized by MIPROv2"
+
+
+# Task 22 (AC1)
+from daisy.types import OptimizationResult
+
+
+def test_always_returns_optimization_result(simple_module, trainset, good_metric, mock_dspy):
+    result = optimize(
+        module=simple_module, trainset=trainset, input_keys=["question"],
+        metric=good_metric, lm="openai/gpt-4o-mini",
+    )
+    assert isinstance(result, OptimizationResult)
+
+
+# Task 23 (AC21)
+import math
+
+
+def test_duration_seconds_is_positive_finite_float(simple_module, trainset, good_metric, mock_dspy):
+    result = optimize(
+        module=simple_module, trainset=trainset, input_keys=["question"],
+        metric=good_metric, lm="openai/gpt-4o-mini",
+    )
+    assert isinstance(result.duration_seconds, float)
+    assert math.isfinite(result.duration_seconds)
+    assert result.duration_seconds > 0
+
+
+# Task 24 (AC19)
+def test_mipro_exception_propagates_unchanged(simple_module, trainset, good_metric, mock_dspy):
+    mock_dspy["mipro_cls"].return_value.compile.side_effect = RuntimeError("network failure")
+    with pytest.raises(RuntimeError, match="network failure"):
+        optimize(
+            module=simple_module, trainset=trainset, input_keys=["question"],
+            metric=good_metric, lm="openai/gpt-4o-mini",
+        )
+
+
+def test_evaluate_exception_propagates_unchanged(simple_module, trainset, good_metric, mock_dspy):
+    mock_dspy["eval_cls"].return_value.side_effect = ConnectionError("rate limited")
+    with pytest.raises(ConnectionError, match="rate limited"):
+        optimize(
+            module=simple_module, trainset=trainset, input_keys=["question"],
+            metric=good_metric, lm="openai/gpt-4o-mini",
+        )
+
+
+# Task 25 (Logging)
+import logging
+
+
+def test_logs_start_baseline_and_completion(simple_module, trainset, good_metric, mock_dspy, caplog):
+    with caplog.at_level(logging.INFO, logger="daisy"):
+        optimize(
+            module=simple_module, trainset=trainset, input_keys=["question"],
+            metric=good_metric, lm="openai/gpt-4o-mini",
+        )
+    messages = [r.message for r in caplog.records]
+    assert any("Starting optimization" in m for m in messages)
+    assert any("Baseline score" in m for m in messages)
+    assert any("Optimization complete" in m for m in messages)
