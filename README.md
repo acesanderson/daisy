@@ -1,101 +1,100 @@
 # Daisy
 
-Daisy is a minimal wrapper around [DSPy](https://dspy.ai/)'s MIPROv2 optimizer. You give it a DSPy module, a labeled dataset, a metric function, and an LM. It gives back optimized prompt instructions and few-shot demos as plain Python — no DSPy dependency required at inference time.
+Daisy is a streamlined optimization wrapper for DSPy modules that automates the process of prompt engineering and few-shot demonstration selection using MIPROv2.
 
----
+## Quick Start
 
-## Install
+Install Daisy using pip:
 
 ```bash
-uv add daisy
+pip install daisy-project
 ```
 
----
-
-## Usage
+The following example demonstrates optimizing a simple RAG pipeline:
 
 ```python
 import dspy
 from daisy import optimize
 
-# 1. Define your DSPy module as normal
-class Summarize(dspy.Module):
+# 1. Define a standard DSPy module
+class SimpleQA(dspy.Module):
     def __init__(self):
-        self.generate = dspy.ChainOfThought("document -> summary")
+        super().__init__()
+        self.generate_answer = dspy.ChainOfThought("question -> answer")
 
-    def forward(self, document):
-        return self.generate(document=document)
+    def forward(self, question):
+        return self.generate_answer(question=question)
 
-
-# 2. Provide labeled examples as plain dicts
+# 2. Prepare training data and a metric
 trainset = [
-    {"document": "Apple released a new iPhone today...", "summary": "Apple launched iPhone"},
-    {"document": "The Fed raised interest rates by 0.25%...", "summary": "Fed raises rates"},
-    # ... ideally 50-200 examples
+    {"question": "What is the capital of France?", "answer": "Paris"},
+    {"question": "Who wrote Principia Mathematica?", "answer": "Isaac Newton"},
 ]
 
+def exact_match_metric(reference, prediction):
+    return float(reference.answer.lower() == prediction.answer.lower())
 
-# 3. Define a metric function
-def metric(example, prediction):
-    return 1.0 if example.summary.lower() in prediction.summary.lower() else 0.0
-
-
-# 4. Run optimization
+# 3. Run optimization
 result = optimize(
-    module=Summarize(),
+    module=SimpleQA(),
     trainset=trainset,
-    input_keys=["document"],   # remaining keys are treated as labels
-    metric=metric,
-    lm="anthropic/claude-sonnet-4-6",
-    auto="light",              # "light" | "medium" | "heavy"
+    input_keys=["question"],
+    metric=exact_match_metric,
+    lm="openai/gpt-4o-mini",
+    api_key="your-api-key",
+    auto="light"
 )
 
-
-# 5. Use the artifacts however you want
+print(f"Optimized score: {result.optimized_score}")
 for artifact in result.predictors:
-    print(artifact.name)
-    print(artifact.instructions)   # plain string — paste into your pipeline
-    print(artifact.demos)          # list of dicts — use as few-shot examples
+    print(f"Predictor: {artifact.name}")
+    print(f"Instructions: {artifact.instructions}")
 ```
 
-### Result shape
+## Core Functionality
 
-```python
-result.improved          # True if optimization beat the baseline
-result.baseline_score    # float
-result.optimized_score   # float
+Daisy abstracts the complexity of DSPy's `MIPROv2` optimizer into a single function call. It handles:
+- Deep copying of modules to prevent side effects
+- Automated dataset conversion into DSPy Example objects
+- Baseline performance evaluation vs. optimized performance
+- Extraction of optimized instructions and few-shot demonstrations into serializable dataclasses
 
-result.predictors        # list[PredictorArtifact]
-artifact.name            # str  — predictor name as defined in your module
-artifact.instructions    # str  — rewritten system instruction
-artifact.demos           # list[dict[str, str]]  — few-shot examples; [] if none generated
-```
+### Optimization Parameters
 
----
+The `optimize` function accepts the following configuration:
 
-## What Daisy abstracts away
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `module` | `dspy.Module` | The DSPy program to optimize. |
+| `trainset` | `list[dict]` | Data used for optimization and evaluation. |
+| `input_keys` | `list[str]` | Keys in the dict that should be treated as model inputs. |
+| `metric` | `Callable` | Function that returns a float representing performance. |
+| `lm` | `str` | Provider/model string (e.g., "openai/gpt-4"). |
+| `auto` | `str` | Optimization rigor: "light", "medium", or "heavy". |
+| `num_threads` | `int` | Concurrent threads for evaluation (default: 4). |
 
-Using DSPy directly for this workflow requires:
+## Architecture
 
-**Data wrangling.** DSPy requires examples to be wrapped in `dspy.Example` objects with `.with_inputs()` called on each one. Daisy accepts plain dicts and handles the wrapping internally.
+Daisy follows a functional approach to optimization. It consumes a mutable DSPy module and returns a frozen `OptimizationResult` containing `PredictorArtifact` objects.
 
-**LM configuration.** DSPy requires a global `dspy.configure(lm=dspy.LM(...))` call before anything runs. Daisy accepts an LM string and handles configuration and teardown, scoped to the optimization run.
+### PredictorArtifact
+Each artifact represents an optimized predictor within the module:
+- `name`: The attribute name of the predictor in the module.
+- `instructions`: The optimized system prompt/instructions generated by the LM.
+- `demos`: A tuple of few-shot examples selected to maximize the metric.
 
-**Optimizer boilerplate.** Instantiating `MIPROv2`, passing the right kwargs, and calling `.compile()` correctly involves a handful of non-obvious parameters. Daisy exposes only `auto` mode, which covers the majority of use cases.
+### OptimizationResult
+- `predictors`: Tuple of all optimized `PredictorArtifacts`.
+- `baseline_score`: The performance of the module before optimization.
+- `optimized_score`: The performance of the module after optimization.
+- `improved`: Boolean indicating if the optimizer found a better configuration than the baseline.
+- `duration_seconds`: Total time taken for the optimization process.
 
-**Artifact extraction.** DSPy returns an optimized program object — a stateful Python class that requires DSPy to run. Extracting the actual instructions and demos as portable plain-Python values requires inspecting `predictor.signature.instructions` and `predictor.demos` across all named predictors. Daisy does this automatically and returns frozen, DSPy-free artifacts.
+## Environment Setup
 
-**Baseline comparison.** DSPy does not automatically tell you whether optimization improved on the baseline. Daisy scores the original module before optimizing and includes both scores in the result, returning the original artifacts if optimization yielded no improvement.
+### Prerequisites
+- Python 3.13 or higher
+- DSPy 2.6 or higher
 
----
-
-## What Daisy does not do
-
-- Run your module at inference time
-- Optimize embedding prompt prefixes
-- Support async metric functions
-- Support modules with per-predictor LMs
-- Checkpoint or resume partial optimization runs
-- Construct or validate your metric function beyond a basic callability check
-
-These are deliberate non-goals. Daisy is an offline prompt compiler, not an inference framework.
+### Configuration
+Daisy uses the standard DSPy `LM` client. If `api_base` or `api_key` are provided to the `optimize` function, they will be passed directly to the underlying model provider. Alternatively, ensure your environment variables (like `OPENAI_API_KEY`) are set before execution.
